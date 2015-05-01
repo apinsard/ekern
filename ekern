@@ -1,0 +1,119 @@
+#!/bin/sh
+
+EKERN_VERSIONS="alpha beta gamma"
+EKERN_SRC=/usr/src
+EKERN_BOOT=/boot
+
+ekern_config2name() {
+  echo $(grep "^CONFIG_LOCALVERSION=" $1 | sed 's/^CONFIG_LOCALVERSION="\(.\+\)"$/\1/')
+}
+
+ekern_config_restore() {
+  local from_kernel=$1
+  local to_kernel=$2
+
+  pushd $EKERN_SRC/$to_kernel
+  cp ../$from_kernel/.config .
+  make oldconfig
+  popd
+}
+
+ekern_configure() {
+  local kernel=$1
+
+  pushd $EKERN_SRC/$kernel
+  make menuconfig
+  popd
+}
+
+ekern_build() {
+  local kernel=$1
+
+  pushd $EKERN_SRC/$kernel
+  make -j7 bzImage
+  popd
+}
+
+ekern_install() {
+  local kernel=$1
+  local nvers=$(echo $EKERN_VERSIONS | wc -w)
+  local ver=$(echo $EKERN_VERSION | cut -d' ' -f$nvers)
+  local version="$(echo $kernel | cut -d'-' -f2)-$(ekern_config2name $EKERN_SRC/$kernel/.config)"
+
+  mount $EKERN_BOOT
+
+  rm $EKERN_BOOT/*-$ver
+
+  nvers=$(($nvers - 1))
+  while [[ $nvers -gt 0 ]]
+  do
+    newver=$ver
+    ver=$(echo $EKERN_VERSION | cut -d' ' -f$nvers)
+    ls -1 $EKERN_BOOT/*-$ver | sed "s/\(.\+\)-$ver$/mv \1-$ver \1-$newver/" | sh
+    nvers=$(($nvers - 1))
+  done
+
+  ver=$(echo $EKERN_VERSION | cut -d' ' -f1)
+
+  cp $EKERN_SRC/$kernel/arch/x86_64/boot/bzImage $EKERN_BOOT/vmlinuz-$version-$ver
+  cp $EKERN_SRC/$kernel/System.map $EKERN_BOOT/System.map-$version-$ver
+  cp $EKERN_SRC/$kernel/.config $EKERN_BOOT/config-$version-$ver
+
+  boot-update
+
+  umount $EKERN_BOOT
+}
+
+ekern_list() {
+  echo $(ls -l /usr/src/)
+}
+
+ekern_set() {
+  local kernel=$1
+
+  ln -sf $EKERN_SRC/$kernel $EKERN_SRC/linux
+}
+
+ekern_update() {
+  local kernel=$1
+  ekern_configure $kernel
+  ekern_build $kernel
+  ekern_install $kernel
+}
+
+ekern_upgrade() {
+  local from_kernel=$1
+  local to_kernel=$2
+
+  ekern_config_restore $from_kernel $to_kernel
+  ekern_update $to_kernel
+  ekern_set $to_kernel
+
+}
+
+ekern_usage() {
+  echo "Usage:"
+  echo "\tekern list"
+  echo "\tekern set <kernel>"
+  echo "\tekern update <kernel>"
+  echo "\tekern upgrade <from-kernel> <to-kernel>"
+}
+
+case "$1" in
+  'list')
+    ekern_list
+    ;;
+  'set')
+    ekern_set $2
+    ;;
+  'update')
+    ekern_update $2
+    ;;
+  'upgrade')
+    ekern_upgrade $2 $3
+    ;;
+  *)
+    ekern_usage
+    exit 1
+    ;;
+esac
