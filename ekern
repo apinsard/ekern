@@ -5,7 +5,9 @@ EKERN_SRC=/usr/src
 EKERN_BOOT=/boot
 
 ekern_config2name() {
-  echo $(grep "^CONFIG_LOCALVERSION=" $1 | sed 's/^CONFIG_LOCALVERSION="\(.\+\)"$/\1/')
+  while read -r cfg; do
+    [[ $cfg == 'CONFIG_LOCALVERSION='* ]] && eval $cfg
+  done < $1
 }
 
 ekern_config_restore() {
