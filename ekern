@@ -8,6 +8,7 @@ ekern_config2name() {
   while read -r cfg; do
     [[ $cfg == 'CONFIG_LOCALVERSION='* ]] && eval $cfg
   done < $1
+  echo $CONFIG_LOCALVERSION
 }
 
 ekern_config_restore() {
@@ -39,7 +40,7 @@ ekern_build() {
 ekern_install() {
   local kernel=$1
   local nvers=$(echo $EKERN_VERSIONS | wc -w)
-  local ver=$(echo $EKERN_VERSION | cut -d' ' -f$nvers)
+  local ver=$(echo $EKERN_VERSIONS | cut -d' ' -f$nvers)
   local version="$(echo $kernel | cut -d'-' -f2)-$(ekern_config2name $EKERN_SRC/$kernel/.config)"
 
   mount $EKERN_BOOT
@@ -50,12 +51,12 @@ ekern_install() {
   while [[ $nvers -gt 0 ]]
   do
     newver=$ver
-    ver=$(echo $EKERN_VERSION | cut -d' ' -f$nvers)
+    ver=$(echo $EKERN_VERSIONS | cut -d' ' -f$nvers)
     ls -1 $EKERN_BOOT/*-$ver | sed "s/\(.\+\)-$ver$/mv \1-$ver \1-$newver/" | sh
     nvers=$(($nvers - 1))
   done
 
-  ver=$(echo $EKERN_VERSION | cut -d' ' -f1)
+  ver=$(echo $EKERN_VERSIONS | cut -d' ' -f1)
 
   cp $EKERN_SRC/$kernel/arch/x86_64/boot/bzImage $EKERN_BOOT/vmlinuz-$version-$ver
   cp $EKERN_SRC/$kernel/System.map $EKERN_BOOT/System.map-$version-$ver
@@ -67,7 +68,7 @@ ekern_install() {
 }
 
 ekern_list() {
-  echo $(ls -l /usr/src/)
+  ls -l /usr/src/
 }
 
 ekern_set() {
